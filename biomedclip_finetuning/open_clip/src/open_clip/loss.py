@@ -557,6 +557,14 @@ class ContrastiveLoss(nn.Module):
         """
         Standard InfoNCE contrastive loss
         """
+        # Debug: Print logits statistics
+        print("[DEBUG] logits_per_image min/max/mean:", logits_per_image.min().item(), logits_per_image.max().item(), logits_per_image.mean().item())
+        print("[DEBUG] logits_per_text min/max/mean:", logits_per_text.min().item(), logits_per_text.max().item(), logits_per_text.mean().item())
+
+        # Clamp logits for numerical stability (for debugging)
+        logits_per_image = logits_per_image.clamp(-20, 20)
+        logits_per_text = logits_per_text.clamp(-20, 20)
+
         # Image-to-text loss
         exp_logits = torch.exp(logits_per_image)
         log_prob = logits_per_image - torch.log(exp_logits.sum(1, keepdim=True))
@@ -569,6 +577,8 @@ class ContrastiveLoss(nn.Module):
 
         # Total loss
         loss = -(mean_log_prob_img + mean_log_prob_text) / 2
+        if torch.isnan(loss).any():
+            print("[WARNING] NaN detected in contrastive loss computation!")
         return loss.mean()
 
     def _hard_negative_loss(self, logits_per_image, logits_per_text, mask):
