@@ -82,6 +82,7 @@ def main(args):
 
     # fully initialize distributed device environment
     device = init_distributed_device(args)
+    input_dtype = get_input_dtype(args.precision)
     print(f"[DEBUG] Device initialized: {device}")
 
     # get the name of the experiments
