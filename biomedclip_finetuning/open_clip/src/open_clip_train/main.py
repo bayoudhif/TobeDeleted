@@ -481,6 +481,8 @@ def main(args):
         # Debug: Check for NaNs in model outputs after first epoch
         if epoch == 0:
             with torch.no_grad():
+                images = images.to(device=device, dtype=input_dtype, non_blocking=True)
+                texts = texts.to(device=device, non_blocking=True)
                 model_out = model(images, texts)
                 if isinstance(model_out, dict):
                     for k, v in model_out.items():
