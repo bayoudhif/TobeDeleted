@@ -68,7 +68,9 @@ def get_latest_checkpoint(path: str, remote : bool):
 
 
 def main(args):
+    print("[DEBUG] Starting main()")
     args = parse_args(args)
+    print("[DEBUG] Arguments parsed:", args)
 
     if torch.cuda.is_available():
         # This enables tf32 on Ampere GPUs which is only 8% slower than
@@ -80,6 +82,7 @@ def main(args):
 
     # fully initialize distributed device environment
     device = init_distributed_device(args)
+    print(f"[DEBUG] Device initialized: {device}")
 
     # get the name of the experiments
     if args.name is None:
@@ -219,6 +222,7 @@ def main(args):
     if args.siglip:
         model_kwargs['init_logit_scale'] = np.log(10)  # different from CLIP
         model_kwargs['init_logit_bias'] = -10
+    print("[DEBUG] Creating model and transforms...")
     model, preprocess_train, preprocess_val = create_model_and_transforms(
         args.model,
         args.pretrained,
@@ -239,6 +243,7 @@ def main(args):
         cache_dir=args.cache_dir,
         **model_kwargs,
     )
+    print("[DEBUG] Model and transforms created.")
     if args.distill:
         # FIXME: currently assumes the model you're distilling from has the same tokenizer & transforms.
         dist_model, _, _ = create_model_and_transforms(
@@ -360,12 +365,14 @@ def main(args):
 
     # initialize datasets
     tokenizer = get_tokenizer(args.model, cache_dir=args.cache_dir)
+    print("[DEBUG] Loading data...")
     data = get_data(
         args,
         (preprocess_train, preprocess_val),
         epoch=start_epoch,
         tokenizer=tokenizer,
     )
+    print("[DEBUG] Data loaded.")
     assert len(data), 'At least one train or eval dataset must be specified.'
 
     # create scheduler if train
@@ -441,6 +448,7 @@ def main(args):
 
     loss = create_loss(args)
 
+    print("[DEBUG] Starting training...")
     for epoch in range(start_epoch, args.epochs):
         if is_master(args):
             logging.info(f'Start epoch {epoch}')
@@ -481,6 +489,7 @@ def main(args):
                 torch.save(checkpoint_dict, tmp_save_path)
                 os.replace(tmp_save_path, latest_save_path)
 
+    print("[DEBUG] Training finished.")
     if args.wandb and is_master(args):
         wandb.finish()
 
