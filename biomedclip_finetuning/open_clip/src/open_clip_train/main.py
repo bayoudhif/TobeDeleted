@@ -82,7 +82,6 @@ def main(args):
 
     # fully initialize distributed device environment
     device = init_distributed_device(args)
-    input_dtype = get_input_dtype(args.precision)
     print(f"[DEBUG] Device initialized: {device}")
 
     # get the name of the experiments
@@ -482,9 +481,11 @@ def main(args):
         # Debug: Check for NaNs in model outputs after first epoch
         if epoch == 0:
             with torch.no_grad():
-                device_for_batch = args.device if hasattr(args, "device") else "cuda"
-                images = images.to(device_for_batch, non_blocking=True)
-                texts = texts.to(device_for_batch, non_blocking=True)
+                # --- move the batch to the same device as the model ---
+                device = args.device if hasattr(args, "device") else "cuda"
+                images = images.to(device, non_blocking=True)
+                texts = texts.to(device, non_blocking=True)
+                
                 model_out = model(images, texts)
                 if isinstance(model_out, dict):
                     for k, v in model_out.items():
