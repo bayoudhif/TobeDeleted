@@ -244,6 +244,19 @@ def main(args):
         **model_kwargs,
     )
     print("[DEBUG] Model and transforms created.")
+
+    # Force logit_scale to a safe value
+    import numpy as np
+    with torch.no_grad():
+        if hasattr(model, "logit_scale"):
+            print(f"[DEBUG] Forcing logit_scale to np.log(1/0.07) = {np.log(1/0.07)}")
+            model.logit_scale.fill_(np.log(1 / 0.07))
+        elif hasattr(model, "module") and hasattr(model.module, "logit_scale"):
+            print(f"[DEBUG] Forcing model.module.logit_scale to np.log(1/0.07) = {np.log(1/0.07)}")
+            model.module.logit_scale.fill_(np.log(1 / 0.07))
+        else:
+            print("[DEBUG] logit_scale attribute not found on model!")
+
     if args.distill:
         # FIXME: currently assumes the model you're distilling from has the same tokenizer & transforms.
         dist_model, _, _ = create_model_and_transforms(
@@ -375,6 +388,17 @@ def main(args):
     print("[DEBUG] Data loaded.")
     assert len(data), 'At least one train or eval dataset must be specified.'
 
+    # Debug: Check for NaNs in the first batch of training data
+    if 'train' in data:
+        first_batch = next(iter(data['train'].dataloader))
+        images, texts = first_batch
+        if torch.isnan(images).any():
+            print("[DEBUG] NaN detected in training images!")
+        if torch.isnan(texts).any():
+            print("[DEBUG] NaN detected in training texts!")
+        else:
+            print("[DEBUG] No NaNs in first batch of images or texts.")
+
     # create scheduler if train
     scheduler = None
     if 'train' in data and optimizer is not None:
@@ -454,6 +478,20 @@ def main(args):
             logging.info(f'Start epoch {epoch}')
 
         train_one_epoch(model, data, loss, epoch, optimizer, scaler, scheduler, dist_model, args, tb_writer=writer)
+        # Debug: Check for NaNs in model outputs after first epoch
+        if epoch == 0:
+            with torch.no_grad():
+                model_out = model(images, texts)
+                if isinstance(model_out, dict):
+                    for k, v in model_out.items():
+                        if torch.is_tensor(v) and torch.isnan(v).any():
+                            print(f"[DEBUG] NaN detected in model output '{k}' after first epoch!")
+                elif isinstance(model_out, (tuple, list)):
+                    for idx, v in enumerate(model_out):
+                        if torch.is_tensor(v) and torch.isnan(v).any():
+                            print(f"[DEBUG] NaN detected in model output at index {idx} after first epoch!")
+                else:
+                    print("[DEBUG] Model output is not a dict or tuple, skipping NaN check.")
         completed_epoch = epoch + 1
 
         if any(v in data for v in ('val', 'imagenet-val', 'imagenet-v2')):
